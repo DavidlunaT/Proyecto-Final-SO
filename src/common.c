@@ -20,6 +20,20 @@ void consume_inventory(BandStatus *b, const Order *o) {
     }
 }
 
+int can_band_fulfill_locked(BandStatus *b, const Order *o) {
+    int ok;
+    sem_wait(&b->band_mutex);
+    ok = can_band_fulfill(b, o);
+    sem_post(&b->band_mutex);
+    return ok;
+}
+
+void consume_inventory_locked(BandStatus *b, const Order *o) {
+    sem_wait(&b->band_mutex);
+    consume_inventory(b, o);
+    sem_post(&b->band_mutex);
+}
+
 static void queue_reset(OrderQueue *q) {
     q->head = q->tail = q->count = 0;
 }

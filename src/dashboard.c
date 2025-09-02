@@ -24,16 +24,51 @@ int main(void) {
         sem_wait(&st->inv_update);
         if (stop_flag || st->shutting_down) break;
         printf("\033[2J\033[H"); // clear
-        printf("=== Dashboard (separado) ===\n");
-        printf("Bandas: %d\n", st->n_bands);
-        if (st->last_alert[0]) printf("ALERTA: %s\n", st->last_alert);
-        printf("Cola global: %d\n", st->orders.count);
+        
+        // Información general
+        int cola_count = 0;
+        sem_wait(&st->orders.mutex);
+        cola_count = st->orders.count;
+        sem_post(&st->orders.mutex);
+        printf("=== BURGER MANAGER DASHBOARD ===\n");
+        printf("Bandas: %d | Cola Global: %d órdenes\n", st->n_bands, cola_count);
+        
+        // Alertas
+        if (st->last_alert[0]) {
+            printf("🚨 [ALERTA] %s\n", st->last_alert);
+        }
+        printf("\n");
+        
+        // Estado detallado por banda
+        printf("ESTADO DE BANDAS:\n");
+        printf("ID  Estado  Proc  Cola  Inventario (p/t/c/l/q/m)\n");
+        printf("--  ------  ----  ----  ------------------------\n");
+        
         for (int i = 0; i < st->n_bands; ++i) {
             BandStatus *b = &st->bands[i];
-            printf("Banda %d [%s] proc=%d inv:", i, b->running?"RUN":"PAUSE", b->processed);
-            for (int k = 0; k < MAX_ING; ++k) printf(" %s=%d", ING_NAMES[k], b->inv[k]);
-            printf("\n");
+            int running, busy, processed, inv[MAX_ING], band_queue_count;
+            
+            // Snapshot consistente
+            sem_wait(&b->band_mutex);
+            running = b->running;
+            busy = b->busy;
+            processed = b->processed;
+            for (int k=0;k<MAX_ING;++k) inv[k]=b->inv[k];
+            sem_post(&b->band_mutex);
+            
+            // Cola de la banda (también necesita lock)
+            sem_wait(&b->q.mutex);
+            band_queue_count = b->q.count;
+            sem_post(&b->q.mutex);
+            
+            const char *estado = running ? (busy ? "ACTIVA*" : "LISTA ") : "PAUSA ";
+            printf("B%d  %s  %4d  %4d  %d/%d/%d/%d/%d/%d\n",
+                   i, estado, processed, band_queue_count,
+                   inv[0], inv[1], inv[2], inv[3], inv[4], inv[5]);
         }
+        
+        printf("\nLeyenda: * = procesando orden, p=pan, t=tomate, c=cebolla, l=lechuga, q=queso, m=carne\n");
+        printf("Ctrl+C para salir\n");
         fflush(stdout);
     }
     return 0;

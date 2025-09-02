@@ -50,6 +50,8 @@ typedef struct {
     int inv[MAX_ING];         // inventario actual
     pid_t pid;                // PID del proceso worker
     BandQueue q;              // cola de trabajos asignados a esta banda
+    int busy;                 // 1 si está preparando una orden
+    sem_t band_mutex;         // protege inv/processed/running/busy
 } BandStatus;
 
 typedef struct {
@@ -73,6 +75,8 @@ typedef struct {
 // Utilidades comunes
 int can_band_fulfill(const BandStatus *b, const Order *o);
 void consume_inventory(BandStatus *b, const Order *o);
+int can_band_fulfill_locked(BandStatus *b, const Order *o);
+void consume_inventory_locked(BandStatus *b, const Order *o);
 void queue_init(OrderQueue *q, int capacity);
 void queue_destroy(OrderQueue *q);
 int queue_push(OrderQueue *q, const Order *o, int capacity, int block);
